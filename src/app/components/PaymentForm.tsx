@@ -2,7 +2,7 @@
 import { useState } from "react";
 
 export default function PaymentForm() {
-  const [amount, setAmount] = useState<number>(1000); // Default amount
+  const [amount, setAmount] = useState<number>(100); // Default amount
   const [email, setEmail] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
@@ -23,9 +23,9 @@ export default function PaymentForm() {
           description: "Service Payment",
           customer: {
             email,
-            firstName: "Customer",
-            lastName: "Name",
-            phoneNumber: "254712345678",
+            firstName: "Clement",
+            lastName: "Ochieng",
+            phoneNumber: "254748615267",
           },
         }),
       });
