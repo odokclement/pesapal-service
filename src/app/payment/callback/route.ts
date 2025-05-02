@@ -6,7 +6,6 @@ const config = {
   consumerSecret: process.env.PESAPAL_CONSUMER_SECRET!,
   environment: process.env.PESAPAL_ENVIRONMENT === 'live' ? 'live' : 'sandbox',
 };
-
 const getPesaPalBaseUrl = () => {
   return config.environment === 'live' 
     ? 'https://pay.pesapal.com/v3' 

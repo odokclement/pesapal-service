@@ -6,7 +6,8 @@ const config = {
   consumerKey: process.env.PESAPAL_CONSUMER_KEY!,
   consumerSecret: process.env.PESAPAL_CONSUMER_SECRET!,
   environment: process.env.PESAPAL_ENVIRONMENT === 'live' ? 'live' : 'sandbox',
-  callbackUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/payment/callback`
+  callbackUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/payment/callback`,
+  ipnUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/api/payment/ipn` // URL where PesaPal will send IPN notifications
 };
 
 // For PesaPal API v3
@@ -53,6 +54,53 @@ const getAuthToken = async (): Promise<string> => {
   }
 }
 
+// Function to register IPN URL and get notification_id
+const registerIPN = async (): Promise<string> => {
+  try {
+    const token = await getAuthToken();
+    
+    const ipnData = {
+      url: config.ipnUrl,
+      ipn_notification_type: "GET" // or "POST" based on your preference
+    };
+
+    console.log('Registering IPN URL with PesaPal:', ipnData);
+
+    const response = await axios.post(
+      `${getPesaPalBaseUrl()}/api/URLSetup/RegisterIPN`,
+      ipnData,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        timeout: 10000
+      }
+    );
+
+    console.log('PesaPal IPN registration response:', response.data);
+
+    if (!response.data?.ipn_id) {
+      console.error('Invalid IPN registration response:', response.data);
+      throw new Error('PesaPal did not return an IPN ID');
+    }
+
+    return response.data.ipn_id;
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      console.error('IPN registration error:', {
+        message: error.message,
+        response: error.response?.data,
+        config: error.config
+      });
+      throw new Error(`IPN registration failed: ${error.response?.data?.error?.message || error.message}`);
+    }
+    console.error('Unexpected error during IPN registration:', error);
+    throw new Error('An unexpected error occurred during IPN registration');
+  }
+}
+
 export async function POST(request: Request) {
     try {
         const { amount, description, customer } = await request.json();
@@ -65,7 +113,12 @@ export async function POST(request: Request) {
             );
         }
 
+        // Get auth token for API calls
         const token = await getAuthToken();
+        
+        // Register IPN URL and get notification_id
+        const notificationId = await registerIPN();
+        console.log('Obtained notification ID:', notificationId);
         
         const orderData = {
             id: `ORDER-${Date.now()}`,
@@ -73,7 +126,7 @@ export async function POST(request: Request) {
             amount,
             description: description || 'Payment for services',
             callback_url: config.callbackUrl,
-            notification_id: '5423db16-9e87-4050-9113-dfe54bc4db0f', // Add your IPN ID if you have one
+            notification_id: notificationId, // Use the dynamically obtained IPN ID
             billing_address: {
                 email_address: customer?.email || '',
                 phone_number: customer?.phoneNumber || '',
@@ -110,7 +163,8 @@ export async function POST(request: Request) {
         return NextResponse.json({
             success: true,
             redirectUrl,
-            trackingId: response.data.order_tracking_id
+            trackingId: response.data.order_tracking_id,
+            ipnId: notificationId // Return the IPN ID for reference
         });
 
     } catch (error: unknown) {
